@@ -1,0 +1,13 @@
+[
+  {
+    "modid_comment": "TODO: Rename reponame",
+    "modid": "reponame",
+    "name_comment": "TODO: Rename REPONAME",
+    "name": "REPONAME",
+    "version": "${version}",
+    "mcversion": "${mcversion}",
+    "authorList": [
+      "MJaroslav"
+    ]
+  }
+]
