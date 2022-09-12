@@ -1,64 +1,72 @@
 buildscript {
     repositories {
-        maven {
-            name 'jitpack'
-            url 'https://jitpack.io'
-        }
-        maven {
-            name = "github"
-            url = "https://github.com/juanmuscaria/maven/raw/master"
-        }
         mavenCentral()
+        maven {
+            name 'forge'
+            url 'https://maven.minecraftforge.net/'
+        }
     }
     dependencies {
-        classpath 'net.minecraftforge.gradle:ForgeGradle:[1.2-1.4.6-SNAPSHOT,)'
+        classpath('com.anatawa12.forge:ForgeGradle:1.2-1.0.+') {
+            changing = true
+        }
     }
 }
 
 repositories {
-    maven {
-        name 'ProfMobius Repo'
-        url 'http://mobiusstrip.eu/maven'
-    }
-    maven {
-        name 'ChickenBones Repo'
-        url 'https://chickenbones.net/maven/'
-    }
+    mavenCentral()
     maven {
         name 'jitpack'
         url 'https://jitpack.io'
     }
-    mavenCentral()
+    maven {
+        name "Gregtech repo"
+        url 'https://gregtech.overminddl1.com'
+    }
 }
 
-apply plugin: 'idea'
-apply plugin: 'java'
-apply plugin: 'forge'
-
-idea.module.inheritOutputDirs = true
-	
 def buildprop = new Properties()
 file("build.properties").withInputStream { buildprop.load(it) }
+
+apply plugin: 'java'
+apply plugin: 'forge'
+if (buildprop.maven.toBoolean())
+    apply plugin: 'maven-publish'
+if (buildprop.mixins.toBoolean())
+    apply from: 'https://raw.githubusercontent.com/tox1cozZ/mixin-booter-legacy/master/gradle/configurations/v1.gradle'
+if (buildprop.ingametests.toBoolean())
+    apply from: 'https://raw.githubusercontent.com/MJaroslav/MCInGameTester/master/gradle/configurations/v1.gradle'
 
 version = buildprop.version
 group = buildprop.group
 archivesBaseName = project.name
 
-[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
-sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
-
 task devJar(type: Jar) {
     classifier('dev')
+    manifest { from project.tasks.jar.manifest }
     from sourceSets.main.output
 }
 
-task sourceJar(type: Jar, dependsOn:classes) {
-    classifier('sources')
-    from sourceSets.main.allJava
+artifacts {
+    archives devJar
 }
 
-artifacts {
-    archives sourceJar, devJar
+java {
+    withSourcesJar()
+}
+
+if (buildprop.jabel.toBoolean()) configure([tasks.compileJava, tasks.compileTestJava, tasks.compileApiJava]) {
+    sourceCompatibility = 16 // for the IDE support
+    options.release = 8
+    javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(16) }
+} else sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+
+configurations {
+    if (buildprop.shading.toBoolean()) {
+        shade
+        implementation.extendsFrom(shade)
+    }
 }
 
 minecraft {
@@ -68,10 +76,10 @@ minecraft {
 }
 
 dependencies {
-    compile "codechicken:CodeChickenLib:${buildprop.ccl_version}:dev"
-    compile "codechicken:CodeChickenCore:${buildprop.ccc_version}:dev"
-    compile "codechicken:NotEnoughItems:${buildprop.nei_version}:dev"
-    compile "mcp.mobius.waila:Waila:${buildprop.waila_version}"
+    implementation "codechicken:CodeChickenLib:1.7.10-1.1.3.140:dev"
+    implementation "codechicken:CodeChickenCore:1.7.10-1.0.7.47:dev"
+    implementation "codechicken:NotEnoughItems:1.7.10-1.0.5.120:dev"
+    implementation "mcp.mobius.waila:Waila:1.5.11-RC2-NONEI_1.7.10:dev"
 
     compileOnly "org.jetbrains:annotations:${buildprop.jetbrains_annotations_version}"
 
@@ -80,29 +88,45 @@ dependencies {
 
     testCompileOnly "org.projectlombok:lombok:${buildprop.lombok_version}"
     testAnnotationProcessor "org.projectlombok:lombok:${buildprop.lombok_version}"
+
+    if (buildprop.jabel.toBoolean()) {
+        annotationProcessor "com.github.bsideup.jabel:jabel-javac-plugin:${buildprop.jabel_version}"
+        testAnnotationProcessor "com.github.bsideup.jabel:jabel-javac-plugin:${buildprop.jabel_version}"
+    }
+
+    if (buildprop.junit.toBoolean()) testImplementation "junit:junit:${buildprop.junit_version}"
+}
+
+test {
+    if (buildprop.junit.toBoolean()) useJUnit()
 }
 
 processResources {
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    includeEmptyDirs = false
     inputs.property 'version', project.version
     inputs.property 'mcversion', project.minecraft.version
     from(sourceSets.main.resources.srcDirs) {
         include 'mcmod.info'
         expand 'version': project.version, 'mcversion': project.minecraft.version
-    }
-    from(sourceSets.main.resources.srcDirs) {
-        exclude 'mcmod.info'
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
     }
 }
 
-tasks.withType(Jar)*.doFirst {
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    includeEmptyDirs = false
-    if ((name == "jar" || name == "devJar" || name == "sourcesJar") && buildprop.coremod.toBoolean())
-        manifest {
-            // TODO: Don't forged about -Dfml.coreMods.load
-            attributes "FMLCorePlugin": "${project.group}.${project.name.replace(" ", "").toLowerCase()}.asm.${project.name.replace(" ", "")}Plugin"
-            attributes "FMLCorePluginContainsFMLMod": "true"
+jar {
+    if (buildprop.coremod.toBoolean()) manifest {
+        // TODO: Don't forged about -Dfml.coreMods.load
+        attributes "FMLCorePlugin": "${project.group}.${project.name.replace(" ", "").toLowerCase()}" +
+                ".asm.${project.name.replace(" ", "")}Plugin"
+        attributes "FMLCorePluginContainsFMLMod": "true"
+    }
+    if (buildprop.shading.toBoolean()) configurations.shade.each { dep -> from project.zipTree(dep) }
+}
+
+if (buildprop.maven.toBoolean()) publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifact jar
+            artifact devJar
+            artifact sourcesJar
         }
+    }
 }
