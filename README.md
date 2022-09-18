@@ -32,12 +32,16 @@ All optional things can be changed in [build.properties](build.properties) file.
 
 ## After cloning
 
-- Change group and package.
+**Note:** Reponame in instructions is a project name from [settings.gradle](settings.gradle) in lower case and without spaces.
+Don't use characters that can't be used in Java package name.
+
 - Change project name in [settings.gradle](settings.gradle).
+- Change group (in [build.properties](build.properties)) to your and replace it in package.
 - Rename `reponame` in package to match the project name.
 - Rename [REPONAMEMod](src/main/java/com/github/mjaroslav/reponame/REPONAMEMod.java) class to match the project name.
 - Change values in [ModInfo](src/main/java/com/github/mjaroslav/reponame/lib/ModInfo.java).
 - Rename (or delete if is not
   used) [REPONAMEPlugin](src/main/java/com/github/mjaroslav/reponame/asm/REPONAMEPlugin.java).
 - Change values in [mcmod.info](src/main/resources/mcmod.info).
+- Configure optional things in [build.properties](build.properties) file.
 - Don't forget change content of this [README.md](README.md) to your.
